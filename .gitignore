@@ -1,6 +1,6 @@
-venv/
-.vscode/
-__pycache__/
-.pytest_cache/git 
-tests/socketservertest.py
-tests/t.py
+/venv/
+/.vscode/
+/__pycache__/
+/.pytest_cache/git 
+/tests/socketservertest.py
+/tests/t.py
