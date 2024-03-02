@@ -14,6 +14,15 @@ from abc import ABC, abstractmethod
 import email.message as emassage
 import os
 import socket as sock
+import time
+
+
+"""
+ssl.SSLEOFError: EOF occurred in violation of protocol (_ssl.c:2426):
+    if socket connection is terminated and server try to send data via closed socket python raise this exception.
+
+
+"""
 
 
 """
@@ -389,11 +398,11 @@ class ThreadedPOP3RequestHandler(socketserver.StreamRequestHandler):
     
     def handle(self) -> None:
         self.listener = self.server.listener
+        status = self.ProtocolStatus.AUTH
         while True:
 
-            command, *args = self.request.recv(1024).decode("ascii").strip().split(" ")
-            status = self.ProtocolStatus.AUTH
-
+          command, *args = self.request.recv(1024).decode("ascii").strip().split(" ")
+          if command != "":  
             if status == self.ProtocolStatus.AUTH:
 
                 if command.upper() == "USER" and len(args) == 1:
@@ -403,7 +412,7 @@ class ThreadedPOP3RequestHandler(socketserver.StreamRequestHandler):
                         self.wfile.flush()
 
                     else:
-                        self.wfile.write("-ERR\r\n".encode())
+                        self.wfile.write("-ERR invalid user name\r\n".encode())
                         self.wfile.flush()
                         break
                     
@@ -417,7 +426,10 @@ class ThreadedPOP3RequestHandler(socketserver.StreamRequestHandler):
                         self.wfile.write("-ERR authentication is failed\r\n".encode())
                         self.wfile.flush()
                         break
-                    
+                else:
+                   self.wfile.write("-ERR invalid command or args\r\n".encode())
+                   self.wfile.flush()
+
             elif status == self.ProtocolStatus.TRNSCTN:
 
                 if command.upper() == "STAT" and len(args) == 0:
@@ -517,10 +529,19 @@ class ThreadedPOP3RequestHandler(socketserver.StreamRequestHandler):
                         self.wfile.write("-ERR invalid argument\r\n".encode())
                         self.wfile.flush()
 
+                else:
+                    self.wfile.write("-ERR\r\n".encode())
+                    self.wfile.flush()
 
             elif status == self.ProtocolStatus.UPDATE:
                 self.listener.deleteMarkedMails(self.userName)
                 return
+            
+            else:
+              self.wfile.write("-ERR invalid command or args\r\n".encode())
+              self.wfile.flush()
+          else:
+              break
             
     def listCommand_isValidArg(self, arg, lenMessage):
 
@@ -565,6 +586,7 @@ class ThreadedPOP3Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
         super().__init__(server_address, requestHandlerClass, bind_and_activate)         
         self.activeSessions = []
         self.listener = listener
+        self.socket.listen(10000)
     """   
     def server_bind(self) -> None:
         self.socket.bind(self.server_address)
@@ -596,14 +618,14 @@ class ThreadedTLSPOP3Server(ThreadedPOP3Server):
             serverthread.daemon = True
             serverthread.start()
             print("server start running...")
-            #if you dont put join method the thread that serving runnning on will exite when this method has complited.
+            #if you dont put join method to the thread that serving runnning on will exite when this method has complited.
             #to prevent it use join method which make the thread that server.startserver method running on wait until the thread is terminated
             serverthread.join()
             
 
     def closeServer(self):
         if self is not None:
-            threading.Thread(target=self.shutdown).start()
+            self.shutdown()
             #threading.Thread(target=self.server_close).start()
             print("end of closeserver")
 

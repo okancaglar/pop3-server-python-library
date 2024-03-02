@@ -131,6 +131,7 @@ class TestPOP3Server(unittest.TestCase):
         self.server = None
         self.th = None
 
+
     
     def setUp(self) -> None:
 
@@ -144,9 +145,9 @@ class TestPOP3Server(unittest.TestCase):
 
         certfile = os.path.join(os.path.dirname(__file__), "certs/server.crt")
         keyfile = os.path.join(os.path.dirname(__file__), "certs/server.key")
-        print(certfile)
-        print(keyfile)
-        self.server = pop3server.ThreadedTLSPOP3Server(("localhost", 55551), pop3server.ThreadedPOP3RequestHandler, listener, certfile=certfile, keyfile=keyfile)
+        #print(certfile)
+        #print(keyfile)
+        self.server = pop3server.ThreadedTLSPOP3Server(("localhost", 55511), pop3server.ThreadedPOP3RequestHandler, listener, certfile=certfile, keyfile=keyfile)
         time.sleep(2)
         self.th = threading.Thread(target=self.server.serve_forever)
         self.th.daemon = True
@@ -155,33 +156,73 @@ class TestPOP3Server(unittest.TestCase):
         
     def tearDown(self) -> None:
         if self.server is not None:
-            print("teardown invoked")
+        #    print("teardown invoked")
             self.server.closeServer()
         
-        if self.th is not None:
-            print(self.th.is_alive())
-            print(self.th.name)
-            self.th.join()
-            print("after join")
+        if self.th is not None and self.th.is_alive():
+        #    print(self.th.is_alive())
+        #    print(self.th.name)
+        #    print("before join")
+            self.server.closeServer()
+        #    print("after join")
 
+        else: 
+            print(f"thread is not alive:{self.th.name}")
 
-        for thread in threading.enumerate():
-            print(thread.name, thread.is_alive())    
+        #for thread in threading.enumerate():
+        #    print(thread.name, thread.is_alive())
+
+        #os._exit(0)    
         return    
+    
+    def test_server(self):
+        
+        for i in range(5000): 
+    
+            clientsocket = socket.socket(socket.AF_INET, type=socket.SocketKind.SOCK_STREAM)
+            #clientsocket.connect(("localhost", 9980))
+            certfile = os.path.join(os.path.dirname(__file__), "certs/server.crt")
+            context = ssl.create_default_context(cafile=certfile)
+            context.check_hostname = False
 
-    def test_auth(self):
-   
-        clientsocket = socket.socket(socket.AF_INET, type=socket.SocketKind.SOCK_STREAM)
-        #clientsocket.connect(("localhost", 9980))
-        certfile = os.path.join(os.path.dirname(__file__), "certs/server.crt")
-        context = ssl.create_default_context(cafile=certfile)
-        context.check_hostname = False
-        with context.wrap_socket(clientsocket, server_hostname="localhost") as sslclientsocket:
-            sslclientsocket.connect(("localhost", 55551))
-            sslclientsocket.sendall("USER test2@testhost.com".encode())
-            userresponse = sslclientsocket.recv(1024).decode().strip()
-            print("end of the auth test")
-            self.assertEqual(userresponse, "+OK")
+            with context.wrap_socket(clientsocket, server_hostname="localhost") as sslclientsocket:
+                sslclientsocket.connect(("localhost", 55511))
+                
+                #user command test
+                sslclientsocket.sendall("USER test2@testhost.com".encode())
+                userresponse = sslclientsocket.recv().decode().strip()
+                response, *args = userresponse.split(" ")
+                print(f"response: {response}, args: {' '.join(args)}")
+                self.assertEqual(response, "+OK")
+                
+                #password test
+                sslclientsocket.sendall("PASS test2pass\r\n".encode())
+                passResponse = sslclientsocket.recv().decode().strip()
+                response, *args = passResponse.split(" ")
+                print(f"pass response: {response}, pass args: {' '.join(args)}")
+                self.assertEqual("+OK", response)
+
+
+                #stat command test
+                sslclientsocket.sendall("STAT\r\n".encode())
+                statResponse = sslclientsocket.recv().decode().strip()
+                response, *args = statResponse.split(" ")
+                print(f"response: {response}, args: {' '.join(args)}")
+                self.assertEqual(response, "+OK")
+
+                sslclientsocket.sendall("STAT 500\r\n".encode())
+                statResponseSecondTest = sslclientsocket.recv().decode().strip()
+                response, *args = statResponseSecondTest.split(" ")
+                print(f"response: {response}, args: {' '.join(args)}")
+                self.assertEqual("-ERR", response)
+
+            
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
